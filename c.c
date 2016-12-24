@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
+#include <sys/time.h>
 
 /* Sleep for the specified number of milliseconds */
 #if defined(unix)
@@ -26,8 +27,8 @@ milli_sleep(long msec)
 #endif
 
 /* Display the program's name */
-static void
-show_name(char *s)
+static char *
+short_name(char *s)
 {
 	char *p;
 
@@ -40,21 +41,24 @@ show_name(char *s)
 	/* Remove trailing extension */
 	if ((p = strrchr(s, '.')) != NULL && p != s)
 		*p = 0;
-	printf("%s\n", s);
+	return s;
 }
 
 int
 main(int argc, char *argv[])
 {
 	char buff[100];
-	time_t now;
+	struct timeval now;
 	struct tm *t;
+	char *name;
 
+	name = short_name(argv[0]);
 	for (;;) {
-		time(&now);
-		t = gmtime(&now);
-		strftime(buff, sizeof(buff), "%Y-%m-%d %H:%M:%S\n", t);
-		fputs(buff, stdout);
+		gettimeofday(&now, NULL);
+		t = gmtime(&(now.tv_sec));
+		strftime(buff, sizeof(buff), "%Y-%m-%d %H:%M:%S", t);
+		printf("%llu.%llu\t%s\t%s\n", (unsigned long long)now.tv_sec,
+				(unsigned long long)now.tv_usec, name, buff);
 		fflush(stdout);
 		milli_sleep(100);
 	}
