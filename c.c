@@ -50,11 +50,10 @@ main(int argc, char *argv[])
 	time_t now;
 	struct tm *t;
 
-	show_name(argv[0]);
 	for (;;) {
 		time(&now);
 		t = gmtime(&now);
-		strftime(buff, sizeof(buff), "\r%Y-%m-%d %H:%M:%S", t);
+		strftime(buff, sizeof(buff), "%Y-%m-%d %H:%M:%S\n", t);
 		fputs(buff, stdout);
 		fflush(stdout);
 		milli_sleep(100);
