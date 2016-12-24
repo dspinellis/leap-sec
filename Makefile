@@ -1,4 +1,5 @@
-all: C-Win-Cygwin C-Win-VS-10
+c: c.c
+	$(CC) $? -o $@
 
 C-Win-Cygwin: c.c
 	cc $? -o $@
