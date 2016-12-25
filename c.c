@@ -148,6 +148,7 @@ main(int argc, char *argv[])
 	tm = gmtime(&tnow);
 	to_sleep = (60 - tm->tm_sec - 1) * 1000;
 	fprintf(stderr, "Sleeping for %lu seconds\n", to_sleep / 1000);
+	fflush(stderr);
 	milli_sleep(to_sleep);
 	/* Then busy loop until the seconds become zero */
 	do {
