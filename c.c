@@ -9,12 +9,13 @@
 
 /* Compatbility functions */
 #if defined(unix)
+#include <err.h>
 #include <sys/select.h>
 #include <sys/time.h>
 
 /* Sleep for the specified number of milliseconds */
 static void
-milli_sleep(long msec)
+milli_sleep(unsgined long msec)
 {
 	struct timeval tv;
 
@@ -22,6 +23,18 @@ milli_sleep(long msec)
 	tv.tv_usec = (msec % 1000L) * 1000L;
 	(void)select(0, 0, 0, 0, &tv);
 }
+
+static unsigned long long
+milli_counter(void)
+{
+	struct timespec ts;
+
+	if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts))
+		err(1, "clock_kettime");
+	return (unsigned long long)ts->tv_sec * 1000 +
+		(unsigned long long)ts->tv_nsec / 1000000ULL;
+}
+
 #elif defined(_WIN32)
 #include <windows.h>
 #include <stdint.h> // portable: uint64_t   MSVC: __int64
@@ -31,6 +44,12 @@ static void
 milli_sleep(long msec)
 {
 	Sleep(msec);
+}
+
+static unsigned long long
+milli_counter(void)
+{
+	return GetTickCount64();
 }
 
 /* From http://stackoverflow.com/a/26085827/20520 */
@@ -78,31 +97,41 @@ main(int argc, char *argv[])
 {
 	char *name;
 	int i;
+	struct timeval now;
+	time_t tnow;
+	struct tm *tm;
+	unsigned long long mono_start, mono_now;
+	unsigned long to_sleep;
+
+	/* Wait for an integral minute to start */
+	/* First sleep until close to a second before the minute */
+	time(&tnow);
+	tm = gmtime(&tnow);
+	to_sleep = (60 - tm->tm_sec - 1) * 1000;
+	fprintf(stderr, "Sleeping for %lu seconds\n", to_sleep / 1000);
+	milli_sleep(to_sleep);
+	/* Then busy loop until the seconds become zero */
+	do {
+		time(&tnow);
+		tm = gmtime(&tnow);
+	} while (tm->tm_sec != 0);
+	mono_start = milli_counter();
 
 	name = short_name(argv[0]);
 	for (i = 0; i < SAMPLES_TO_RECORD; i++) {
-		char human[100], normalized[100];
-		struct timeval now;
-		struct tm *tm;
-		time_t tnow, treverse;
+		char human[100];
 
 		gettimeofday(&now, NULL);
-
 		tnow = now.tv_sec;
 		if ((tm = gmtime(&tnow)) != NULL)
 			strftime(human, sizeof(human), "%Y-%m-%d %H:%M:%S", tm);
 		else
 			strcpy(human, "ERROR");
 
-		if ((time_t)(treverse = mktime(tm)) != -1)
-			strftime(normalized, sizeof(normalized),
-					"%Y-%m-%d %H:%M:%S", tm);
-		else
-			strcpy(normalized, "ERROR");
-		printf("%llu.%llu\t%s\t%s\t%llu\t%s\n",
+		printf("%.3f %llu.%llu\t%s\t%s\n",
+				(milli_counter() - mono_start) / 1000.,
 				(unsigned long long)now.tv_sec,
-				(unsigned long long)now.tv_usec, name, human,
-				(unsigned long long)treverse, normalized);
+				(unsigned long long)now.tv_usec, name, human);
 		fflush(stdout);
 		milli_sleep(1000 / SAMPLES_PER_SECOND);
 	}
