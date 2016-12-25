@@ -29,7 +29,13 @@ milli_counter(void)
 {
 	struct timespec ts;
 
+#if defined(CLOCK_MONOTONIC_RAW)
 	if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts))
+#elif defined(CLOCK_MONOTONIC_PRECISE)
+	if (clock_gettime(CLOCK_MONOTONIC_PRECISE, &ts))
+#else
+	if (clock_gettime(CLOCK_MONOTONIC, &ts))
+#endif
 		err(1, "clock_kettime");
 	return (unsigned long long)ts.tv_sec * 1000 +
 		(unsigned long long)ts.tv_nsec / 1000000ULL;
