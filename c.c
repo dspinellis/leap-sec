@@ -15,7 +15,7 @@
 
 /* Sleep for the specified number of milliseconds */
 static void
-milli_sleep(unsgined long msec)
+milli_sleep(unsigned long msec)
 {
 	struct timeval tv;
 
@@ -31,8 +31,8 @@ milli_counter(void)
 
 	if (clock_gettime(CLOCK_MONOTONIC_RAW, &ts))
 		err(1, "clock_kettime");
-	return (unsigned long long)ts->tv_sec * 1000 +
-		(unsigned long long)ts->tv_nsec / 1000000ULL;
+	return (unsigned long long)ts.tv_sec * 1000 +
+		(unsigned long long)ts.tv_nsec / 1000000ULL;
 }
 
 #elif defined(_WIN32)
