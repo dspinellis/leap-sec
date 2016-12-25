@@ -8,7 +8,7 @@
 #define SAMPLES_TO_RECORD (SECONDS_TO_RECORD * SAMPLES_PER_SECOND)
 
 /* Compatbility functions */
-#if defined(unix)
+#if defined(unix) || defined(__MACH__)
 #include <err.h>
 #include <sys/select.h>
 #include <sys/time.h>
@@ -23,7 +23,29 @@ milli_sleep(unsigned long msec)
 	tv.tv_usec = (msec % 1000L) * 1000L;
 	(void)select(0, 0, 0, 0, &tv);
 }
+#endif
 
+#if defined(__MACH__)
+/* Based on https://developer.apple.com/library/content/qa/qa1398/_index.html */
+#include <CoreServices/CoreServices.h>
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <unistd.h>
+
+static unsigned long long
+milli_counter(void)
+{
+	uint64_t t;
+	Nanoseconds nano;
+
+	t = mach_absolute_time();
+	nano = AbsoluteToNanoseconds(*(AbsoluteTime *)&t);
+
+	return *(uint64_t *)&nano / 1000000LLU;
+}
+#endif
+
+#if defined(unix)
 static unsigned long long
 milli_counter(void)
 {
@@ -40,8 +62,9 @@ milli_counter(void)
 	return (unsigned long long)ts.tv_sec * 1000 +
 		(unsigned long long)ts.tv_nsec / 1000000ULL;
 }
+#endif
 
-#elif defined(_WIN32)
+#if defined(_WIN32)
 #include <windows.h>
 #include <stdint.h> // portable: uint64_t   MSVC: __int64
 
@@ -79,6 +102,7 @@ gettimeofday(struct timeval * tp, struct timezone * tzp)
 	return 0;
 }
 #endif
+
 
 /* Display the program's name */
 static char *
