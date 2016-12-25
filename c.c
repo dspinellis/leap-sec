@@ -36,12 +36,21 @@ static unsigned long long
 milli_counter(void)
 {
 	uint64_t t;
+	static mach_timebase_info_data_t sTimebaseInfo;
 	Nanoseconds nano;
 
 	t = mach_absolute_time();
-	nano = AbsoluteToNanoseconds(*(AbsoluteTime *)&t);
+	// If this is the first time we've run, get the timebase.
+	// We can use denom == 0 to indicate that sTimebaseInfo is
+	// uninitialised because it makes no sense to have a zero
+	// denominator is a fraction.
 
-	return *(uint64_t *)&nano / 1000000LLU;
+	if (sTimebaseInfo.denom == 0)
+		(void)mach_timebase_info(&sTimebaseInfo);
+
+	// Do the maths. We hope that the multiplication doesn't
+	// overflow; the price you pay for working in fixed point.
+	return t / 1000000LLU * sTimebaseInfo.numer / sTimebaseInfo.denom;
 }
 #endif
 
