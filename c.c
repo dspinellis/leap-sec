@@ -3,9 +3,7 @@
 #include <time.h>
 
 #define SAMPLES_PER_SECOND 25
-#define SECONDS_TO_RECORD 120
-
-#define SAMPLES_TO_RECORD (SECONDS_TO_RECORD * SAMPLES_PER_SECOND)
+#define MILLISECONDS_TO_RECORD 120000
 
 /* Compatbility functions */
 #if defined(unix) || defined(__MACH__)
@@ -158,7 +156,7 @@ main(int argc, char *argv[])
 	mono_start = milli_counter();
 
 	name = short_name(argv[0]);
-	for (i = 0; i < SAMPLES_TO_RECORD; i++) {
+	do {
 		char human[100];
 
 		gettimeofday(&now, NULL);
@@ -168,11 +166,11 @@ main(int argc, char *argv[])
 		else
 			strcpy(human, "ERROR");
 
-		printf("%.3f %llu.%llu\t%s\t%s\n",
+		printf("%.3f\t%llu.%llu\t%s\t%s\n",
 				(milli_counter() - mono_start) / 1000.,
 				(unsigned long long)now.tv_sec,
 				(unsigned long long)now.tv_usec, name, human);
 		fflush(stdout);
 		milli_sleep(1000 / SAMPLES_PER_SECOND);
-	}
+	} while (milli_counter() - mono_start < MILLISECONDS_TO_RECORD);
 }
