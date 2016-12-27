@@ -1,8 +1,7 @@
 import java.util.Map;
-import java.math.*;
 import processing.data.Table;
 
-final boolean saveFrames = false;
+final boolean saveFrames = true;
 final int fontSize = 22;
 final int leftMargin = 10;
 final int topMargin = 120;
@@ -10,6 +9,7 @@ final int columnWidth = 290;
 final int dataColumn = leftMargin + columnWidth / 2;
 double virtualFrameRate = 25;
 final int textHeight = 40;
+final int historyEntryHeight = (int)(2.5 * textHeight);
 PFont fontNormal, fontBold;
 float textWidth;
 // Y offsets for displaying values
@@ -23,23 +23,26 @@ Table systems;
 Table v;
 // Table value to be processed
 int currentRow;
+final color headingColor = color(64, 120, 192);
 
 // The x coordinate of each system displayed
-HashMap<String,Integer> systemColumn = new HashMap<String,Integer>();
+HashMap<String, Integer> systemColumn = new HashMap<String, Integer>();
 
-// The past 4 seconds for each system tracked
+// The past seconds for each system tracked
 ArrayList<HashMap<String, TableRow>> history = new ArrayList<HashMap<String, TableRow>>();
-final int historyRows = 3;
+final int historyRows = 6;
+final String title = "Leap Second Log: 2016-12-31";
+final String cc = "CC BY 4.0 www.spinellis.gr";
 
 // Return the fractional part of a number
 float
-frac(float x)
+  frac(float x)
 {
   return x - floor(x);
 }
 
 void
-setup()
+  setup()
 {
   // Normal
   fontNormal = createFont("c:/Windows/Fonts/LucidaSansTypewriter.ttf", fontSize);
@@ -53,9 +56,16 @@ setup()
   size(1920, 1080);
   frameRate((int)virtualFrameRate);
 
+  // Video headings
+  fill(color(128));
+  textFont(createFont("c:/Windows/Fonts/LucidaSansTypewriter.ttf", fontSize * 2));
+  text(title, (width - textWidth(title)) / 2, textHeight);
+  textFont(fontNormal);
+  text(cc, width - textWidth(cc) - 5, height - 5);
+
   // Draw table headings
   textFont(fontBold);
-  fill(color(0, 0, 255));
+  fill(headingColor);
   // Table column headings
   systems = loadTable("c:/dds/src/fun/leap-sec/systems.txt", "tsv,header");
   int x = dataColumn;
@@ -74,7 +84,7 @@ setup()
   text("Unix", leftMargin, y);
   y += textHeight;
   text("Human", leftMargin, y);
-  historyValues = y + 4 * textHeight;
+  historyValues = y + 3 * textHeight;
 
   textFont(fontNormal);
   if (saveFrames) {
@@ -102,7 +112,7 @@ setup()
 
 // Process a new data row
 void
-processRow(TableRow r)
+  processRow(TableRow r)
 {
   displayCurrentValues(currentValues, r);
   displayHistory();
@@ -110,9 +120,9 @@ processRow(TableRow r)
 }
 
 void
-draw()
+  draw()
 {
-  for (;;) {
+  for (;; ) {
     TableRow r = v.getRow(currentRow);
     float tData = r.getFloat("abs");
     float tFrame = frameCount / frameRate;
@@ -132,7 +142,7 @@ draw()
 
 // Update the history as needed
 void
-updateHistory(TableRow r)
+  updateHistory(TableRow r)
 {
   float t = r.getFloat("abs");
   if (frac(t) < 0.5)
@@ -161,15 +171,12 @@ updateHistory(TableRow r)
 }
 
 void
-displayHistory()
+  displayHistory()
 {
-  if (history.size() != historyRows + 1)
-    return;
-
   // Clear previous area
   fill(255);
   stroke(255);
-  rect(leftMargin, historyValues - 3 * textHeight, width, textHeight * 12);
+  rect(leftMargin, historyValues - 3 * textHeight, width, historyEntryHeight * (historyRows + 1));
   fill(0);
 
   int y = historyValues;
@@ -177,27 +184,27 @@ displayHistory()
     for (Map.Entry me : tr.entrySet()) {
       displayHistoryValues(y - scrollOffset, (TableRow)me.getValue());
     }
-    y += 2.5 * textHeight;
+    y += historyEntryHeight;
   }
-  if (scrollOffset < 2.5 * textHeight)
+  if (history.size() == historyRows + 1 && scrollOffset < historyEntryHeight)
     scrollOffset++;
 
   // Clear area outside the scroll clipping window
   fill(255);
   stroke(255);
   rect(leftMargin, historyValues - 3 * textHeight, width, textHeight * 2);
-  rect(leftMargin, historyValues + 6.5 * textHeight, width, textHeight * 2);
+  rect(leftMargin, historyValues + historyRows * historyEntryHeight - textHeight, width, textHeight * 2);
 
   // Draw label
   textFont(fontBold);
-  fill(color(0, 0, 255));
+  fill(headingColor);
   text("SI", leftMargin, historyValues - textHeight * 1.5);
   textFont(fontNormal);
   fill(0);
 }
 
 void
-displayCurrentValues(int y, TableRow r)
+  displayCurrentValues(int y, TableRow r)
 {
   String name = r.getString("system");
   // println(name);
@@ -218,7 +225,7 @@ displayCurrentValues(int y, TableRow r)
 }
 
 void
-displayHistoryValues(int y, TableRow r)
+  displayHistoryValues(int y, TableRow r)
 {
   String name = r.getString("system");
   int x = systemColumn.get(name);
