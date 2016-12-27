@@ -1,4 +1,5 @@
 import java.util.Map;
+import java.math.*;
 import processing.data.Table;
 
 final int fontSize = 22;
@@ -98,7 +99,7 @@ setup()
 void
 processRow(TableRow r)
 {
-  displayValues(currentValues, r);
+  displayCurrentValues(currentValues, r);
   displayHistory();
   updateHistory(r);
 }
@@ -162,14 +163,14 @@ displayHistory()
   int y = historyValues;
   for (HashMap<String, TableRow> tr : history) {
     for (Map.Entry me : tr.entrySet()) {
-      displayValues(y, (TableRow)me.getValue());
+      displayHistoryValues(y, (TableRow)me.getValue());
     }
     y += 3 * textHeight;
   }
 }
 
 void
-displayValues(int y, TableRow r)
+displayCurrentValues(int y, TableRow r)
 {
   String name = r.getString("system");
   // println(name);
@@ -185,6 +186,29 @@ displayValues(int y, TableRow r)
   text(r.getString("abs"), x, y);
   y += textHeight;
   text(r.getString("unix"), x, y);
+  y += textHeight;
+  text(r.getString("fdate") + " " + r.getString("ftime"), x, y);
+}
+
+void
+displayHistoryValues(int y, TableRow r)
+{
+  String name = r.getString("system");
+  // println(name);
+  int x = systemColumn.get(name);
+
+  // Clear area
+  fill(255);
+  stroke(255);
+  rect(x, y - textHeight, columnWidth, textHeight * 2);
+  rect(leftMargin, y - textHeight, textWidth * 3, textHeight);
+
+  fill(0);
+
+  text(floor(r.getFloat("abs")), leftMargin, y);
+  // Double precision needed here
+  int ut = (int)Math.floor(Double.parseDouble(r.getString("unix"))); 
+  text(ut, x, y);
   y += textHeight;
   text(r.getString("fdate") + " " + r.getString("ftime"), x, y);
 }
