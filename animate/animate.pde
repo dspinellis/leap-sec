@@ -6,26 +6,41 @@ final int leftMargin = 10;
 final int topMargin = 120;
 final int columnWidth = 290;
 final int dataColumn = leftMargin + columnWidth / 2;
+final boolean saveFrames = false;
 double virtualFrameRate = 25;
 final int textHeight = 40;
 PFont fontNormal, fontBold;
 float textWidth;
-int timeSI;
-int timeUnix;
-int timeHuman;
-
+// Y offsets for displaying values
+int currentValues;
+int historyValues;
+// History scroll offset
+int scrollOffset = -1;
+// Details of systems we process
+Table systems;
 // Values over time
 Table v;
+// Table value to be processed
+int currentRow;
 
-// Frame at which to show next character
-double updateFrame;
-import java.util.Map;
-
+// The x coordinate of each system displayed
 HashMap<String,Integer> systemColumn = new HashMap<String,Integer>();
 
-void setup()
+// The past 4 seconds for each system tracked
+ArrayList<HashMap<String, TableRow>> history = new ArrayList<HashMap<String, TableRow>>();
+final int historyRows = 3;
+
+// Return the fractional part of a number
+float
+frac(float x)
 {
-  // Normal 
+  return x - floor(x);
+}
+
+void
+setup()
+{
+  // Normal
   fontNormal = createFont("c:/Windows/Fonts/LucidaSansTypewriter.ttf", fontSize);
   // Bold
   fontBold = createFont("c:/Windows/Fonts/LucidaSansTypewriter-Bd.ttf", fontSize);
@@ -36,13 +51,12 @@ void setup()
   // Compatible with the video we're recording
   size(1920, 1080);
   frameRate((int)virtualFrameRate);
-  noLoop();
 
   // Draw table headings
   textFont(fontBold);
   fill(color(0, 0, 255));
   // Table column headings
-  Table systems = loadTable("c:/dds/src/fun/leap-sec/systems.txt", "tsv,header");
+  systems = loadTable("c:/dds/src/fun/leap-sec/systems.txt", "tsv,header");
   int x = dataColumn;
   int y = topMargin;
   for (TableRow row : systems.rows()) {
@@ -53,41 +67,124 @@ void setup()
   }
   // Table row headings
   y += 2 * textHeight;
-  text("SI", leftMargin, timeSI = y);
+  currentValues = y;
+  text("SI", leftMargin, y);
   y += textHeight;
-  text("Unix", leftMargin, timeUnix = y);
+  text("Unix", leftMargin, y);
   y += textHeight;
-  text("Human", leftMargin, timeHuman = y);
-  
-  
+  text("Human", leftMargin, y);
+  historyValues = y + 2 * textHeight;
+
   textFont(fontNormal);
-  for (int i = 0; i < v.getRowCount(); i++) {
-    myDraw(i);
-    if (v.getRow(i).getFloat("abs") < frameCount / virtualFrameRate)
-      continue;
-    frameCount++;
-    if (v.getRow(i).getFloat("abs") > 500)
-      break;
-    saveFrame("r:/frames/#######.png");
+  if (saveFrames) {
+    /*
+     * Virtually, iterate over all frames to ensure that no frames
+     * are skipped, as could be the case in real-time frame processing.
+     */
+    noLoop();
+    for (TableRow r : v.rows()) {
+      processRow(r);
+      float t = r.getFloat("abs");
+      if (t < frameCount / virtualFrameRate)
+        continue;
+      frameCount++;
+      saveFrame("r:/frames/#######.png");
+    }
+    exit();
   }
-  exit();
 }
 
-void myDraw(int rowNum)
+// Process a new data row
+void
+processRow(TableRow r)
 {
-  TableRow r = v.getRow(rowNum);
+  displayValues(currentValues, r);
+  displayHistory();
+  updateHistory(r);
+}
+
+void
+draw()
+{
+  for (;;) {
+    TableRow r = v.getRow(currentRow);
+    float tData = r.getFloat("abs");
+    float tFrame = frameCount / frameRate;
+    // Return if not yet time to process this row
+    if (tData > tFrame)
+      return;
+    // Don't process stale data
+    if (tData >= tFrame - 1. / frameRate)
+      processRow(r);
+    currentRow++;
+    if (currentRow >= v.getRowCount()) {
+      noLoop();
+      return;
+    }
+  }
+}
+
+// Update the history as needed
+void
+updateHistory(TableRow r)
+{
+  float t = r.getFloat("abs");
+  if (frac(t) < 0.5)
+    return;
+
+  if (history.size() == 0)
+    history.add(new HashMap<String, TableRow>());
+
+  HashMap<String, TableRow> lastRow = history.get(history.size() - 1);
   String name = r.getString("system");
-  println(name);
+  TableRow lastVal = lastRow.get(name);
+  if (lastVal == null) {
+    // This system is not yet in the last row; add it
+    // println("Adding value " + name + " at " + t + " to history");
+    lastRow.put(name, r);
+    // See if we just completed a new row and we can start scrolling it in
+    if (lastRow.size() == systems.getRowCount())
+      scrollOffset = 0;
+  } else if (floor(lastVal.getFloat("abs")) < floor(t)) {
+    // The last row has outdated data; add a new row
+    // println("Adding new history row " + name + " t=" + t + " after t=" + lastVal.getFloat("abs"));
+    lastRow = new HashMap<String, TableRow>();
+    history.add(lastRow);
+    if (history.size() > historyRows + 1)
+      history.remove(0);
+    lastRow.put(name, r);
+  }
+}
+
+void
+displayHistory()
+{
+  int y = historyValues;
+  for (HashMap<String, TableRow> tr : history) {
+    for (Map.Entry me : tr.entrySet()) {
+      displayValues(y, (TableRow)me.getValue());
+    }
+    y += 3 * textHeight;
+  }
+}
+
+void
+displayValues(int y, TableRow r)
+{
+  String name = r.getString("system");
+  // println(name);
   int x = systemColumn.get(name);
 
   // Clear area
   fill(255);
   stroke(255);
-  rect(x, timeSI - textHeight, columnWidth, textHeight * 3);
-  
+  rect(x, y - textHeight, columnWidth, textHeight * 3);
+
   fill(0);
 
-  text(r.getString("abs"), x, timeSI);
-  text(r.getString("unix"), x, timeUnix);
-  text(r.getString("fdate") + " " + r.getString("ftime"), x, timeHuman);
+  text(r.getString("abs"), x, y);
+  y += textHeight;
+  text(r.getString("unix"), x, y);
+  y += textHeight;
+  text(r.getString("fdate") + " " + r.getString("ftime"), x, y);
 }
