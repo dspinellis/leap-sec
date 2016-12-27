@@ -2,12 +2,12 @@ import java.util.Map;
 import java.math.*;
 import processing.data.Table;
 
+final boolean saveFrames = false;
 final int fontSize = 22;
 final int leftMargin = 10;
 final int topMargin = 120;
 final int columnWidth = 290;
 final int dataColumn = leftMargin + columnWidth / 2;
-final boolean saveFrames = false;
 double virtualFrameRate = 25;
 final int textHeight = 40;
 PFont fontNormal, fontBold;
@@ -16,7 +16,7 @@ float textWidth;
 int currentValues;
 int historyValues;
 // History scroll offset
-int scrollOffset = -1;
+int scrollOffset;
 // Details of systems we process
 Table systems;
 // Values over time
@@ -74,7 +74,7 @@ setup()
   text("Unix", leftMargin, y);
   y += textHeight;
   text("Human", leftMargin, y);
-  historyValues = y + 2 * textHeight;
+  historyValues = y + 4 * textHeight;
 
   textFont(fontNormal);
   if (saveFrames) {
@@ -83,13 +83,18 @@ setup()
      * are skipped, as could be the case in real-time frame processing.
      */
     noLoop();
-    for (TableRow r : v.rows()) {
-      processRow(r);
+    // Do not use (TableRow r : v.rows()), because r returns a static area
+    // that is invaldiated after every iteration
+    for (int i = 0; i < v.getRowCount(); i++) {
+      TableRow r = v.getRow(i);
       float t = r.getFloat("abs");
+      println("Working on frame=" + frameCount + " t=" + t);
+      processRow(r);
       if (t < frameCount / virtualFrameRate)
         continue;
       frameCount++;
       saveFrame("r:/frames/#######.png");
+      // if (frameCount > 245) break;
     }
     exit();
   }
@@ -143,12 +148,10 @@ updateHistory(TableRow r)
     // This system is not yet in the last row; add it
     // println("Adding value " + name + " at " + t + " to history");
     lastRow.put(name, r);
-    // See if we just completed a new row and we can start scrolling it in
-    if (lastRow.size() == systems.getRowCount())
-      scrollOffset = 0;
   } else if (floor(lastVal.getFloat("abs")) < floor(t)) {
     // The last row has outdated data; add a new row
     // println("Adding new history row " + name + " t=" + t + " after t=" + lastVal.getFloat("abs"));
+    scrollOffset = 0;
     lastRow = new HashMap<String, TableRow>();
     history.add(lastRow);
     if (history.size() > historyRows + 1)
@@ -160,13 +163,37 @@ updateHistory(TableRow r)
 void
 displayHistory()
 {
+  if (history.size() != historyRows + 1)
+    return;
+
+  // Clear previous area
+  fill(255);
+  stroke(255);
+  rect(leftMargin, historyValues - 3 * textHeight, width, textHeight * 12);
+  fill(0);
+
   int y = historyValues;
   for (HashMap<String, TableRow> tr : history) {
     for (Map.Entry me : tr.entrySet()) {
-      displayHistoryValues(y, (TableRow)me.getValue());
+      displayHistoryValues(y - scrollOffset, (TableRow)me.getValue());
     }
-    y += 3 * textHeight;
+    y += 2.5 * textHeight;
   }
+  if (scrollOffset < 2.5 * textHeight)
+    scrollOffset++;
+
+  // Clear area outside the scroll clipping window
+  fill(255);
+  stroke(255);
+  rect(leftMargin, historyValues - 3 * textHeight, width, textHeight * 2);
+  rect(leftMargin, historyValues + 6.5 * textHeight, width, textHeight * 2);
+
+  // Draw label
+  textFont(fontBold);
+  fill(color(0, 0, 255));
+  text("SI", leftMargin, historyValues - textHeight * 1.5);
+  textFont(fontNormal);
+  fill(0);
 }
 
 void
@@ -194,16 +221,7 @@ void
 displayHistoryValues(int y, TableRow r)
 {
   String name = r.getString("system");
-  // println(name);
   int x = systemColumn.get(name);
-
-  // Clear area
-  fill(255);
-  stroke(255);
-  rect(x, y - textHeight, columnWidth, textHeight * 2);
-  rect(leftMargin, y - textHeight, textWidth * 3, textHeight);
-
-  fill(0);
 
   text(floor(r.getFloat("abs")), leftMargin, y);
   // Double precision needed here
