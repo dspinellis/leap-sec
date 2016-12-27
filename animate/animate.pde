@@ -230,10 +230,13 @@ void
   String name = r.getString("system");
   int x = systemColumn.get(name);
 
+  if (r.getString("ftime").equals("00:00:00"))
+    fill(color(255, 0, 0));
   text(floor(r.getFloat("abs")), leftMargin, y);
   // Double precision needed here
   int ut = (int)Math.floor(Double.parseDouble(r.getString("unix"))); 
   text(ut, x, y);
   y += textHeight;
   text(r.getString("fdate") + " " + r.getString("ftime"), x, y);
+  fill(0);
 }
