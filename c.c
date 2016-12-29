@@ -233,13 +233,13 @@ void
 ntp_log(const char *name, const char *hostname)
 {
 	int portno = 123;	//NTP is port 123
-	int i;			// misc var i
+	int i;
 	unsigned char msg[48] = { 010, 0, 0, 0, 0, 0, 0, 0, 0 };	// the packet we send
 	uint32_t buf[1024];	// the buffer we get back
 	struct protoent *proto;	//
 	struct sockaddr_in server_addr;
 	int s;			// socket
-	uint32_t tmit;		// the time -- This is a time_t sort of
+	uint32_t tsec;		// the time -- This is a time_t sort of
 	uint32_t tfrac;
 	struct hostent *h;
 	struct timeval now;
@@ -263,40 +263,27 @@ ntp_log(const char *name, const char *hostname)
 	       sizeof(server_addr.sin_addr));
 	server_addr.sin_port = htons(portno);
 
-	/*
-	 * build a message.  Our message is all zeros except for a one in the
-	 * protocol version field
-	 * msg[] in binary is 00 001 000 00000000 
-	 * it should be a total of 48 bytes long
-	 */
+	/* Repeat for ten hours */
+	for (i = 0; i < 10 * 60; i++) {
+		int n;
+		double t;
+		unsigned long long msec;
 
-	// send the data
-	i = sendto(s, msg, sizeof(msg), 0, (struct sockaddr *)&server_addr,
-		   sizeof(server_addr));
+		n = sendto(s, msg, sizeof(msg), 0,
+				(struct sockaddr *)&server_addr,
+				sizeof(server_addr));
+		n = recv(s, (char *)buf, sizeof(buf), 0);
+		tsec = ntohl((uint32_t) buf[10]);
+		tfrac = ntohl((uint32_t) buf[11]);
+		tsec -= 2208988800U;
+		t = tsec + (double)tfrac / FRAC;
+		time_stamp(name, t);
+		fflush(stdout);
 
-	// get the data back
-	i = recv(s, (char *)buf, sizeof(buf), 0);
-
-	/*
-	 * The high word of transmit time is the 10th word we get back
-	 * tmit is the time in seconds not accounting for network delays which
-	 * should be way less than a second if this is a local NTP server
-	 */
-
-	tmit = ntohl((uint32_t) buf[10]);	//# get transmit time
-	tfrac = ntohl((uint32_t) buf[11]);	//# get transmit time
-
-	/*
-	 * Convert time to unix standard time NTP is number of seconds since 0000
-	 * UT on 1 January 1900 unix time is seconds since 0000 UT on 1 January
-	 * 1970 There has been a trend to add a 2 leap seconds every 3 years.
-	 * Leap seconds are only an issue the last second of the month in June and
-	 * December if you don't try to set the clock then it can be ignored but
-	 * this is importaint to people who coordinate times with GPS clock sources.
-	 */
-
-	tmit -= 2208988800U;
-	time_stamp(name, tmit + (double)tfrac / FRAC);
+		/* Sleep to the next integral minute */
+		msec = t * 1000;
+		milli_sleep(60000 - msec % 60000);
+	}
 }
 
 int
