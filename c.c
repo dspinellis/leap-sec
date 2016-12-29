@@ -135,7 +135,7 @@ gettimeofday(struct timeval * tp, struct timezone * tzp)
 	time += ((uint64_t)file_time.dwHighDateTime) << 32;
 
 	tp->tv_sec = (long)((time - EPOCH) / 10000000L);
-	tp->tv_usec = (long)((time - EPOCH) % 10000000L);
+	tp->tv_usec = (long) (system_time.wMilliseconds * 1000);
 	return 0;
 }
 
@@ -186,7 +186,7 @@ time_stamp(const char *name, double si_seconds)
 
 	printf("%.3f\t%llu.%03u\t%s\t%s\n", si_seconds,
 			(unsigned long long)now.tv_sec,
-			(unsigned int)floor((double)now.tv_usec / 1000),
+			(unsigned int)floor((double)now.tv_usec / 1000.),
 			name, human);
 }
 
@@ -212,20 +212,21 @@ fast_log(const char *name)
 		time(&tnow);
 		tm = gmtime(&tnow);
 	} while (tm->tm_sec != 0);
+
 	mono_start = milli_counter();
 	/* Fast recording of many hours */
 	do {
-		time_stamp(name, (milli_counter() - mono_start) / 1000);
+		time_stamp(name, (milli_counter() - mono_start) / 1000.);
 		milli_sleep(1000 / SAMPLES_PER_SECOND);
 	} while (milli_counter() - mono_start < MILLISECONDS_TO_RECORD);
 }
 
 /*
- * This code will query an NTP server for the local time and display
- * it.
+ * This code will query an NTP server for its time and display
+ * the corresponding timestamps.
  * It is derived from public domain code written
  * by Tim Hogard (thogard@abnormal.com)  in Perl Thu Sep 26 13:35:41 EAST 2002
- * and converted to C Fri Feb 21 21:42:49 EAST 2003
+ * and converted to C Fri Feb 21 21:42:49 EAST 2003.
  * The original code can be found at http://www.abnormal.com/~thogard/ntp/
  */
 ntp_log(const char *name, const char *hostname)
@@ -276,7 +277,6 @@ ntp_log(const char *name, const char *hostname)
 
 	tmit = ntohl((uint32_t) buf[10]);	//# get transmit time
 	tfrac = ntohl((uint32_t) buf[11]);	//# get transmit time
-	//printf("tmit=%d\n",tmit);
 
 	/*
 	 * Convert time to unix standard time NTP is number of seconds since 0000
