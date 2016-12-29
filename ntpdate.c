@@ -16,6 +16,7 @@
  */
 
 #include <err.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -31,7 +32,7 @@ int main(int argc, char *argv[])
 	int maxlen = 1024;	//check our buffers
 	int i;			// misc var i
 	unsigned char msg[48] = { 010, 0, 0, 0, 0, 0, 0, 0, 0 };	// the packet we send
-	unsigned long buf[maxlen];	// the buffer we get back
+	uint32_t buf[maxlen];	// the buffer we get back
 	//struct in_addr ipaddr;                //      
 	struct protoent *proto;	//
 	struct sockaddr_in server_addr;
