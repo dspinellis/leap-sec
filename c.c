@@ -263,8 +263,8 @@ ntp_log(const char *name, const char *hostname)
 	       sizeof(server_addr.sin_addr));
 	server_addr.sin_port = htons(portno);
 
-	/* Repeat for ten hours */
-	for (i = 0; i < 10 * 60; i++) {
+	/* Repeat for 12 hours */
+	for (i = 0; i < 12 * 60; i++) {
 		int n;
 		double t;
 		unsigned long long msec;
