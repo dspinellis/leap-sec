@@ -243,6 +243,13 @@ ntp_log(const char *name, const char *hostname)
 	struct hostent *h;
 	struct timeval now;
 
+#if defined(_WIN32)
+	WSADATA wsaData;
+	WORD v;
+
+	if (WSAStartup(v, &wsaData) != 0)
+		err(1, "WSAStartup");
+#endif
 	proto = getprotobyname("udp");
 	if ((s = socket(PF_INET, SOCK_DGRAM, proto->p_proto)) < 0)
 		err(1, "socket");
