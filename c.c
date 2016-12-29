@@ -229,6 +229,7 @@ fast_log(const char *name)
  * and converted to C Fri Feb 21 21:42:49 EAST 2003.
  * The original code can be found at http://www.abnormal.com/~thogard/ntp/
  */
+void
 ntp_log(const char *name, const char *hostname)
 {
 	int portno = 123;	//NTP is port 123
