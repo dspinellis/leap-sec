@@ -20,6 +20,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <time.h>
 #include <sys/types.h>
@@ -186,7 +187,7 @@ time_stamp(const char *name, double si_seconds)
 	printf("%.3f\t%llu.%03u\t%s\t%s\n", si_seconds,
 			(unsigned long long)now.tv_sec,
 			(unsigned int)floor((double)now.tv_usec / 1000),
-			(unsigned long long)now.tv_usec, name, human);
+			name, human);
 }
 
 static void

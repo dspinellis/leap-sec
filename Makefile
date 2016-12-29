@@ -1,5 +1,5 @@
 c: c.c
-	$(CC) $? -o $@
+	$(CC) $? -o $@ -lm
 
 C-Win-Cygwin: c.c
 	cc $? -o $@
