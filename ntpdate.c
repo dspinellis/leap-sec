@@ -16,6 +16,8 @@
  */
 
 #include <err.h>
+#include <math.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
@@ -24,60 +26,49 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
-int
-main(int argc, char *argv[])
-{
-	char	*hostname = argv[1];
-	int	portno=123;		//NTP is port 123
-	int	maxlen=1024;		//check our buffers
-	int	i;			// misc var i
-	unsigned char msg[48]={010,0,0,0,0,0,0,0,0};	// the packet we send
-	unsigned long  buf[maxlen];	// the buffer we get back
-	//struct in_addr ipaddr;		//	
-	struct protoent *proto;		//
-	struct sockaddr_in server_addr;
-	int	s;	// socket
-	int	tmit;	// the time -- This is a time_t sort of
-	struct hostent *h;
+#define FRAC       4294967296.             /* 2^32 as a double */
 
-	//use Socket;
-	//
-	//#we use the system call to open a UDP socket
-	//socket(SOCKET, PF_INET, SOCK_DGRAM, getprotobyname("udp")) or die "socket: $!";
-	proto=getprotobyname("udp");
+int main(int argc, char *argv[])
+{
+	char *hostname = argv[1];
+	int portno = 123;	//NTP is port 123
+	int maxlen = 1024;	//check our buffers
+	int i;			// misc var i
+	unsigned char msg[48] = { 010, 0, 0, 0, 0, 0, 0, 0, 0 };	// the packet we send
+	uint32_t buf[maxlen];	// the buffer we get back
+	struct protoent *proto;	//
+	struct sockaddr_in server_addr;
+	int s;			// socket
+	uint32_t tmit;		// the time -- This is a time_t sort of
+	uint32_t tfrac;
+	struct hostent *h;
+	struct timeval now;
+
+	proto = getprotobyname("udp");
 	if ((s = socket(PF_INET, SOCK_DGRAM, proto->p_proto)) < 0)
 		err(1, "socket");
 
 	if ((h = gethostbyname(argv[1])) == NULL)
 		err(1, "gethostbyname %s", argv[1]);
-	//#convert hostname to ipaddress if needed
-	//$ipaddr   = inet_aton($HOSTNAME);
-	memset( &server_addr, 0, sizeof( server_addr ));
-	server_addr.sin_family=AF_INET;
-	memcpy(&server_addr.sin_addr.s_addr, h->h_addr_list[0], sizeof(server_addr.sin_addr));
-	server_addr.sin_port=htons(portno);
-	//printf("ipaddr (in hex): %x\n",server_addr.sin_addr);
+	memset(&server_addr, 0, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	memcpy(&server_addr.sin_addr.s_addr, h->h_addr_list[0],
+	       sizeof(server_addr.sin_addr));
+	server_addr.sin_port = htons(portno);
 
 	/*
 	 * build a message.  Our message is all zeros except for a one in the
 	 * protocol version field
 	 * msg[] in binary is 00 001 000 00000000 
 	 * it should be a total of 48 bytes long
-	*/
+	 */
 
 	// send the data
-	i=sendto(s,msg,sizeof(msg),0,(struct sockaddr *)&server_addr,sizeof(server_addr));
+	i = sendto(s, msg, sizeof(msg), 0, (struct sockaddr *)&server_addr,
+		   sizeof(server_addr));
 
 	// get the data back
-	i=recv(s,buf,sizeof(buf),0);
-	//printf("recvfr: %d\n",i);
-	//perror("recvfr:");
-
-	//We get 12 long words back in Network order
-	/*
-	for(i=0;i<12;i++)
-		printf("%d\t%-8x\n",i,ntohl(buf[i]));
-	*/
+	i = recv(s, buf, sizeof(buf), 0);
 
 	/*
 	 * The high word of transmit time is the 10th word we get back
@@ -85,7 +76,8 @@ main(int argc, char *argv[])
 	 * should be way less than a second if this is a local NTP server
 	 */
 
-	tmit=ntohl((time_t)buf[10]);	//# get transmit time
+	tmit = ntohl((uint32_t) buf[10]);	//# get transmit time
+	tfrac = ntohl((uint32_t) buf[11]);	//# get transmit time
 	//printf("tmit=%d\n",tmit);
 
 	/*
@@ -97,17 +89,9 @@ main(int argc, char *argv[])
 	 * this is importaint to people who coordinate times with GPS clock sources.
 	 */
 
-	tmit-= 2208988800U;	
-	//printf("tmit=%d\n",tmit);
-	/* use unix library function to show me the local time (it takes care
-	 * of timezone issues for both north and south of the equator and places
-	 * that do Summer time/ Daylight savings time.
-	 */
-
-
-	//#compare to system time
-	printf("Time: %s",ctime((time_t *)&tmit));
-	i=time(0);
-	//printf("%d-%d=%d\n",i,tmit,i-tmit);
-	printf("System time is %d seconds off\n",i-tmit);
+	tmit -= 2208988800U;
+	gettimeofday(&now, NULL);
+	printf("%.3lf\t", tmit + (double)tfrac / FRAC, tfrac);
+	printf("%lu.%03u\n",
+			now.tv_sec, (unsigned int)round((double)now.tv_usec / 1000));
 }
