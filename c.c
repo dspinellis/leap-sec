@@ -20,8 +20,9 @@
 #include <string.h>
 #include <time.h>
 
+/* Record two minutes in real time */
 #define SAMPLES_PER_SECOND 25
-#define MILLISECONDS_TO_RECORD 120000
+#define MILLISECONDS_TO_RECORD (2 * 60 * 1000)
 
 /* Compatbility functions */
 #if defined(unix) || defined(__MACH__)
@@ -147,15 +148,37 @@ short_name(char *s)
 	return s;
 }
 
+/* Display the current timestamp on standard output */
+static void
+time_stamp(const char *name, unsigned long long start)
+{
+	char human[100];
+	struct tm *tm;
+	struct timeval now;
+	time_t tnow;
+	unsigned long long mono_now;
+
+	gettimeofday(&now, NULL);
+	tnow = now.tv_sec;
+	if ((tm = gmtime(&tnow)) != NULL)
+		strftime(human, sizeof(human), "%Y-%m-%d %H:%M:%S", tm);
+	else
+		strcpy(human, "ERROR");
+
+	printf("%.3f\t%llu.%llu\t%s\t%s\n",
+			(milli_counter() - start) / 1000.,
+			(unsigned long long)now.tv_sec,
+			(unsigned long long)now.tv_usec, name, human);
+}
+
 int
 main(int argc, char *argv[])
 {
 	char *name;
 	int i;
-	struct timeval now;
 	time_t tnow;
 	struct tm *tm;
-	unsigned long long mono_start, mono_now;
+	unsigned long long mono_start;
 	unsigned long to_sleep;
 
 	/* Wait for an integral minute to start */
@@ -171,24 +194,12 @@ main(int argc, char *argv[])
 		time(&tnow);
 		tm = gmtime(&tnow);
 	} while (tm->tm_sec != 0);
-	mono_start = milli_counter();
-
 	name = short_name(argv[0]);
+
+	mono_start = milli_counter();
+	/* Fast recording of many hours */
 	do {
-		char human[100];
-
-		gettimeofday(&now, NULL);
-		tnow = now.tv_sec;
-		if ((tm = gmtime(&tnow)) != NULL)
-			strftime(human, sizeof(human), "%Y-%m-%d %H:%M:%S", tm);
-		else
-			strcpy(human, "ERROR");
-
-		printf("%.3f\t%llu.%llu\t%s\t%s\n",
-				(milli_counter() - mono_start) / 1000.,
-				(unsigned long long)now.tv_sec,
-				(unsigned long long)now.tv_usec, name, human);
-		fflush(stdout);
+		time_stamp(name, mono_start);
 		milli_sleep(1000 / SAMPLES_PER_SECOND);
 	} while (milli_counter() - mono_start < MILLISECONDS_TO_RECORD);
 }
