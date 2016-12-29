@@ -5,4 +5,4 @@ C-Win-Cygwin: c.c
 	cc $? -o $@
 
 C-Win-VS-10: c.c
-	cl $? /Fe$@
+	cl $? /Fe$@ wsock32.lib
