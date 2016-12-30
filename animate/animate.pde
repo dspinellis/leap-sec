@@ -19,7 +19,7 @@
 import java.util.Map;
 import processing.data.Table;
 
-final boolean saveFrames = false;
+final boolean saveFrames = true;
 final int fontSize = 22;
 final int leftMargin = 10;
 final int topMargin = 120;
@@ -172,11 +172,12 @@ animationTime(TableRow r)
 void
   processRow(TableRow r)
 {
-  displayCurrentValues(currentValues, r);
   if (r.getFloat("abs") < 200) {
+    displayCurrentValues(currentValues, r, false);
     displayHistory();
     updateHistory(r);
-  }
+  } else
+    displayCurrentValues(currentValues, r, true);
 }
 
 void
@@ -275,7 +276,7 @@ displayHistory()
 }
 
 void
-  displayCurrentValues(int y, TableRow r)
+  displayCurrentValues(int y, TableRow r, boolean showDelta)
 {
   String name = r.getString("system");
   // println(name);
@@ -284,7 +285,7 @@ void
   // Clear area
   fill(255);
   stroke(255);
-  rect(x, y - textHeight, columnWidth, textHeight * 3);
+  rect(x, y - textHeight, columnWidth, textHeight * 4);
 
   fill(0);
 
@@ -293,6 +294,19 @@ void
   text(r.getString("unix"), x, y);
   y += textHeight;
   text(r.getString("fdate") + " " + r.getString("ftime"), x, y);
+  if (showDelta) {
+    y += textHeight;
+
+    //textFont(fontBold);
+    fill(headingColor);
+    text("Delta-T", leftMargin, y);
+    textFont(fontNormal);
+    fill(0);
+
+    float delta = (float)(Double.parseDouble(r.getString("abs")) -
+      Double.parseDouble(r.getString("unix")));
+    text(delta, x, y);
+  }
 }
 
 void
