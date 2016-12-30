@@ -19,7 +19,7 @@
 import java.util.Map;
 import processing.data.Table;
 
-final boolean saveFrames = true;
+final boolean saveFrames = false;
 final int fontSize = 22;
 final int leftMargin = 10;
 final int topMargin = 120;
@@ -51,6 +51,10 @@ ArrayList<HashMap<String, TableRow>> history = new ArrayList<HashMap<String, Tab
 final int historyRows = 6;
 final String title = "Leap Second Log: 2016-12-31";
 final String cc = "CC BY 4.0 www.spinellis.gr";
+
+// The absolute time for the beginning and end records
+double beginRecordsBegin = -1;
+double endRecordsBegin = -1;
 
 // Return the fractional part of a number
 float
@@ -115,7 +119,7 @@ void
     // that is invaldiated after every iteration
     for (int i = 0; i < v.getRowCount(); i++) {
       TableRow r = v.getRow(i);
-      float t = r.getFloat("abs");
+      float t = animationTime(r);
       println("Working on frame=" + frameCount + " t=" + t);
       processRow(r);
       if (t < frameCount / virtualFrameRate)
@@ -128,22 +132,71 @@ void
   }
 }
 
+/* Return the time in the animation for the specified table row
+ * First 12 hours (-b) play in 28.8s
+ * Next 2 minutes (m) play in 2m
+ * Last 12 hours (-e) play in 28.8s
+ * Return -1 for records to be skipped
+ */
+float
+animationTime(TableRow r)
+{
+  String recordType = r.getString("type");
+  String fTime = r.getString("ftime");
+  double t = Double.parseDouble(r.getString("abs"));
+
+  // println("type=" + recordType + " ftime=" + fTime);
+  if (t == 2085978496)  // Skip invalid records
+    return -1;
+  if (recordType.equals("-b")) {        // Begin records; one per minute
+    if (match(fTime, "^12:00") != null)
+      return -1;
+    if (beginRecordsBegin == -1 && match(fTime, "^12:01") != null)
+      beginRecordsBegin = Math.floor(t);
+    return (float)((t - beginRecordsBegin) / 60 / virtualFrameRate);
+  } else if (recordType.equals("m")) {  // Midnight records; one per second
+    return (float)(28.8 + t);
+  } else if (recordType.equals("-e")) {        // End records; one per minute
+    if (match(fTime, "^00:00") != null)
+      return -1;
+    if (endRecordsBegin == -1 && match(fTime, "^00:01") != null) {
+      endRecordsBegin = Math.floor(t);
+      clearHistory();
+    }
+    return (float)(28.8 + 120 + (t - endRecordsBegin) / 60 / virtualFrameRate);
+  }
+  return 0f;
+}
+
 // Process a new data row
 void
   processRow(TableRow r)
 {
   displayCurrentValues(currentValues, r);
-  displayHistory();
-  updateHistory(r);
+  if (r.getFloat("abs") < 200) {
+    displayHistory();
+    updateHistory(r);
+  }
 }
 
 void
   draw()
 {
-  for (;; ) {
+  for (;;) {
+    if (currentRow >= v.getRowCount()) {
+      noLoop();
+      return;
+    }
+    
     TableRow r = v.getRow(currentRow);
-    float tData = r.getFloat("abs");
+    float tData = animationTime(r);
     float tFrame = frameCount / frameRate;
+
+    if (tData == -1) {
+      currentRow++;
+      return;
+    }
+    // println("tData=" + tData + " tFrame=" + tFrame);
     // Return if not yet time to process this row
     if (tData > tFrame)
       return;
@@ -151,10 +204,6 @@ void
     if (tData >= tFrame - 1. / frameRate)
       processRow(r);
     currentRow++;
-    if (currentRow >= v.getRowCount()) {
-      noLoop();
-      return;
-    }
   }
 }
 
@@ -189,14 +238,18 @@ void
 }
 
 void
-  displayHistory()
+clearHistory()
 {
-  // Clear previous area
   fill(255);
   stroke(255);
   rect(leftMargin, historyValues - 3 * textHeight, width, historyEntryHeight * (historyRows + 1));
   fill(0);
+}
 
+void
+displayHistory()
+{
+  clearHistory();
   int y = historyValues;
   for (HashMap<String, TableRow> tr : history) {
     for (Map.Entry me : tr.entrySet()) {
