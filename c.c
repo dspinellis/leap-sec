@@ -242,7 +242,8 @@ ntp_log(const char *name, const char *hostname)
 	uint32_t tsec;		// the time -- This is a time_t sort of
 	uint32_t tfrac;
 	struct hostent *h;
-	struct timeval now;
+	struct timeval tv, now;
+	int count = 0;
 
 #if defined(_WIN32)
 	WSADATA wsaData;
@@ -252,8 +253,6 @@ ntp_log(const char *name, const char *hostname)
 		err(1, "WSAStartup");
 #endif
 	proto = getprotobyname("udp");
-	if ((s = socket(PF_INET, SOCK_DGRAM, proto->p_proto)) < 0)
-		err(1, "socket");
 
 	if ((h = gethostbyname(hostname)) == NULL)
 		err(1, "gethostbyname");
@@ -263,17 +262,33 @@ ntp_log(const char *name, const char *hostname)
 	       sizeof(server_addr.sin_addr));
 	server_addr.sin_port = htons(portno);
 
+retry:
+	if ((s = socket(PF_INET, SOCK_DGRAM, proto->p_proto)) < 0)
+		err(1, "socket");
+
+	/* Set a 2 second timeout on the socket */
+	tv.tv_sec = 2;
+	tv.tv_usec = 0;
+	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval));
+
 	/* Repeat for 12 hours */
-	for (i = 0; i < 12 * 60; i++) {
+	while (count < 12 * 60) {
 		int n;
 		double t;
 		unsigned long long msec;
-
+		fprintf(stderr, "Calling sendto\n");
 		n = sendto(s, msg, sizeof(msg), 0,
 				(struct sockaddr *)&server_addr,
 				sizeof(server_addr));
+		fprintf(stderr, "Calling recv\n");
 		n = recv(s, (char *)buf, sizeof(buf), 0);
 		tsec = ntohl((uint32_t) buf[10]);
+		if (tsec == 0) {
+			fprintf(stderr, "Unable to get NTP time. Retrying.\n");
+			milli_sleep(1000);
+			(void)close(s);
+			goto retry;
+		}
 		tfrac = ntohl((uint32_t) buf[11]);
 		tsec -= 2208988800U;
 		t = tsec + (double)tfrac / FRAC;
@@ -283,6 +298,7 @@ ntp_log(const char *name, const char *hostname)
 		/* Sleep to the next integral minute */
 		msec = t * 1000;
 		milli_sleep(60000 - msec % 60000);
+		count++;
 	}
 }
 
