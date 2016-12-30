@@ -190,6 +190,7 @@ time_stamp(const char *name, double si_seconds)
 			name, human);
 }
 
+/* Real time recording of the most crucial minutes */
 static void
 fast_log(const char *name)
 {
@@ -214,7 +215,6 @@ fast_log(const char *name)
 	} while (tm->tm_sec != 0);
 
 	mono_start = milli_counter();
-	/* Fast recording of many hours */
 	do {
 		time_stamp(name, (milli_counter() - mono_start) / 1000.);
 		milli_sleep(1000 / SAMPLES_PER_SECOND);
