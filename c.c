@@ -27,6 +27,9 @@
 
 #define FRAC       4294967296.             /* NTP fraction: 2^32 as a double */
 
+static void ntp_time(const char *hostname, double *t);
+static double ntp_offset(const char *ntp_server);
+
 /* Record two minutes in real time */
 #define SAMPLES_PER_SECOND 25
 #define MILLISECONDS_TO_RECORD (2 * 60 * 1000)
@@ -40,6 +43,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
+#include <unistd.h>
 
 /* Sleep for the specified number of milliseconds */
 static void
@@ -192,13 +196,14 @@ time_stamp(const char *name, double si_seconds)
 
 /* Real time recording of the most crucial minutes */
 static void
-fast_log(const char *name)
+second_log(const char *name, const char *ntp_server)
 {
 	int i;
 	time_t tnow;
 	struct tm *tm;
 	unsigned long long mono_start;
 	unsigned long to_sleep;
+	double offset;
 
 	/* Wait for an integral minute to start */
 	/* First sleep until close to a second before the minute */
@@ -214,9 +219,10 @@ fast_log(const char *name)
 		tm = gmtime(&tnow);
 	} while (tm->tm_sec != 0);
 
+	offset = ntp_offset(ntp_server);
 	mono_start = milli_counter();
 	do {
-		time_stamp(name, (milli_counter() - mono_start) / 1000.);
+		time_stamp(name, (milli_counter() - mono_start) / 1000. + offset);
 		milli_sleep(1000 / SAMPLES_PER_SECOND);
 	} while (milli_counter() - mono_start < MILLISECONDS_TO_RECORD);
 }
@@ -229,8 +235,8 @@ fast_log(const char *name)
  * and converted to C Fri Feb 21 21:42:49 EAST 2003.
  * The original code can be found at http://www.abnormal.com/~thogard/ntp/
  */
-void
-ntp_log(const char *name, const char *hostname)
+static void
+ntp_time(const char *hostname, double *t)
 {
 	int portno = 123;	//NTP is port 123
 	int i;
@@ -243,15 +249,8 @@ ntp_log(const char *name, const char *hostname)
 	uint32_t tfrac;
 	struct hostent *h;
 	struct timeval tv, now;
-	int count = 0;
+	int n;
 
-#if defined(_WIN32)
-	WSADATA wsaData;
-	WORD v;
-
-	if (WSAStartup(v, &wsaData) != 0)
-		err(1, "WSAStartup");
-#endif
 	proto = getprotobyname("udp");
 
 	if ((h = gethostbyname(hostname)) == NULL)
@@ -262,36 +261,79 @@ ntp_log(const char *name, const char *hostname)
 	       sizeof(server_addr.sin_addr));
 	server_addr.sin_port = htons(portno);
 
-retry:
-	if ((s = socket(PF_INET, SOCK_DGRAM, proto->p_proto)) < 0)
-		err(1, "socket");
+	for (;;) {
+		if ((s = socket(PF_INET, SOCK_DGRAM, proto->p_proto)) < 0)
+			err(1, "socket");
 
-	/* Set a 2 second timeout on the socket */
-	tv.tv_sec = 2;
-	tv.tv_usec = 0;
-	setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval));
+		/* Set a 2 second timeout on the socket */
+		tv.tv_sec = 2;
+		tv.tv_usec = 0;
+		setsockopt(s, SOL_SOCKET, SO_RCVTIMEO, (char *)&tv, sizeof(struct timeval));
 
-	/* Repeat for 12 hours */
-	while (count < 12 * 60) {
-		int n;
-		double t;
-		unsigned long long msec;
-		fprintf(stderr, "Calling sendto\n");
 		n = sendto(s, msg, sizeof(msg), 0,
 				(struct sockaddr *)&server_addr,
 				sizeof(server_addr));
-		fprintf(stderr, "Calling recv\n");
 		n = recv(s, (char *)buf, sizeof(buf), 0);
+#if defined(_WIN32)
+		closesocket(s);
+#else
+		close(s);
+#endif
 		tsec = ntohl((uint32_t) buf[10]);
-		if (tsec == 0) {
-			fprintf(stderr, "Unable to get NTP time. Retrying.\n");
-			milli_sleep(1000);
-			(void)close(s);
-			goto retry;
+		if (tsec != 0) {
+			tfrac = ntohl((uint32_t) buf[11]);
+			tsec -= 2208988800U;
+			*t = tsec + (double)tfrac / FRAC;
+			return;
 		}
-		tfrac = ntohl((uint32_t) buf[11]);
-		tsec -= 2208988800U;
-		t = tsec + (double)tfrac / FRAC;
+		fprintf(stderr, "Unable to get NTP time. Retrying.\n");
+		fflush(stderr);
+		milli_sleep(1000);
+	}
+}
+
+/*
+ * Return the offset between the time of the specified NTP sever
+ * and that of the system.
+ * Integral differences of more than 20s are ignored to allow for
+ * a systemrunning on TAI.
+ */
+static double
+ntp_offset(const char *ntp_server)
+{
+	double time_ntp, time_system, diff;
+	struct timeval now;
+
+	ntp_time(ntp_server, &time_ntp);
+	gettimeofday(&now, NULL);
+	time_system = now.tv_sec + now.tv_usec * 1e-6;
+	diff = time_ntp - time_system;
+	if (diff < 20)
+		diff -= ceil(diff);
+	fprintf(stderr, "Offset %g - %g = %g\n", time_ntp, time_system, diff);
+	fflush(stderr);
+	return (diff);
+}
+
+/*
+ * This code will query an NTP server for its time and display
+ * the corresponding timestamps.
+ * It is derived from public domain code written
+ * by Tim Hogard (thogard@abnormal.com)  in Perl Thu Sep 26 13:35:41 EAST 2002
+ * and converted to C Fri Feb 21 21:42:49 EAST 2003.
+ * The original code can be found at http://www.abnormal.com/~thogard/ntp/
+ */
+static void
+minute_log(const char *name, const char *hostname)
+{
+	int count = 0;
+
+	/* Repeat for 12 hours */
+	while (count < 12 * 60) {
+		unsigned long long msec;
+		double t;
+
+		ntp_time(hostname, &t);
 		time_stamp(name, t);
 		fflush(stdout);
 
@@ -302,15 +344,29 @@ retry:
 	}
 }
 
+/*
+ * Two uses
+ * log -s ntp-server: log every second
+ * log -m ntp-server: log every minute
+ */
 int
 main(int argc, char *argv[])
 {
-	if (argc == 1)
-		fast_log(short_name(argv[0]));
-	else if (argc == 2)
-		ntp_log(short_name(argv[0]), argv[1]);
+	const char *name = short_name(argv[0]);
+#if defined(_WIN32)
+	WSADATA wsaData;
+	WORD v;
+
+	if (WSAStartup(v, &wsaData) != 0)
+		err(1, "WSAStartup");
+#endif
+
+	if (argc == 3 && strcmp(argv[1], "-s") == 0)
+		second_log(name, argv[2]);
+	else if (argc == 3 && strcmp(argv[1], "-m") == 0)
+		minute_log(name, argv[2]);
 	else {
-		fprintf(stderr, "Usage: %s [ntp_server]\n", argv[0]);
+		fprintf(stderr, "Usage: %s -s|-m ntp_server\n", argv[0]);
 		exit(1);
 	}
 }
