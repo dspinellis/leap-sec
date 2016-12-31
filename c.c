@@ -45,12 +45,6 @@ static double ntp_offset(const char *ntp_server);
 #include <netdb.h>
 #include <unistd.h>
 
-static int
-closesocket(int fd)
-{
-	return close(fd);
-}
-
 /* Sleep for the specified number of milliseconds */
 static void
 milli_sleep(unsigned long msec)
@@ -158,6 +152,26 @@ err(int ret, const char *msg)
 
 #endif
 
+/*
+ * Shutdown and close the specified socket
+ * This graceful handling hopefully handles the case
+ * where hosts behind the router were unable to contact the NTP
+ * server after about 60 exchanges.
+ */
+static void
+shutdown_close(int s)
+{
+	char buff[1024];
+
+	shutdown(s, SHUT_RDWR);
+	while (read(s, buff, sizeof(buff)) > 0)
+		;
+#if defined(_WIN32)
+	closesocket(s);
+#else
+	close(s);
+#endif
+}
 
 /* Display the program's name */
 static char *
@@ -282,17 +296,17 @@ ntp_time(const char *hostname, double *t)
 		if (n != sizeof(msg)) {
 			fprintf(stderr, "Unable to send NTP packet: %s\n",
 					strerror(errno));
-			closesocket(s);
+			shutdown_close(s);
 			goto retry;
 		}
 		n = recv(s, (char *)buf, sizeof(buf), 0);
 		if (n <= 0) {
 			fprintf(stderr, "Unable to receive NTP packet: %s\n",
 					strerror(errno));
-			closesocket(s);
+			shutdown_close(s);
 			goto retry;
 		}
-		closesocket(s);
+		shutdown_close(s);
 		tsec = ntohl((uint32_t) buf[10]);
 		if (tsec != 0) {
 			tfrac = ntohl((uint32_t) buf[11]);
