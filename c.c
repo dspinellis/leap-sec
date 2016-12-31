@@ -45,6 +45,12 @@ static double ntp_offset(const char *ntp_server);
 #include <netdb.h>
 #include <unistd.h>
 
+static int
+closesocket(int fd)
+{
+	return close(fd);
+}
+
 /* Sleep for the specified number of milliseconds */
 static void
 milli_sleep(unsigned long msec)
@@ -102,12 +108,6 @@ milli_counter(void)
 		err(1, "clock_kettime");
 	return (unsigned long long)ts.tv_sec * 1000 +
 		(unsigned long long)ts.tv_nsec / 1000000ULL;
-}
-
-static int
-closesocket(int fd)
-{
-	return close(fd);
 }
 #endif
 
