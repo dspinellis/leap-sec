@@ -103,6 +103,12 @@ milli_counter(void)
 	return (unsigned long long)ts.tv_sec * 1000 +
 		(unsigned long long)ts.tv_nsec / 1000000ULL;
 }
+
+static int
+closesocket(int fd)
+{
+	return close(fd);
+}
 #endif
 
 #if defined(_WIN32)
@@ -273,12 +279,20 @@ ntp_time(const char *hostname, double *t)
 		n = sendto(s, msg, sizeof(msg), 0,
 				(struct sockaddr *)&server_addr,
 				sizeof(server_addr));
+		if (n != sizeof(msg)) {
+			fprintf(stderr, "Unable to send NTP packet: %s\n",
+					strerror(errno));
+			closesocket(s);
+			goto retry;
+		}
 		n = recv(s, (char *)buf, sizeof(buf), 0);
-#if defined(_WIN32)
+		if (n <= 0) {
+			fprintf(stderr, "Unable to receive NTP packet: %s\n",
+					strerror(errno));
+			closesocket(s);
+			goto retry;
+		}
 		closesocket(s);
-#else
-		close(s);
-#endif
 		tsec = ntohl((uint32_t) buf[10]);
 		if (tsec != 0) {
 			tfrac = ntohl((uint32_t) buf[11]);
@@ -286,6 +300,7 @@ ntp_time(const char *hostname, double *t)
 			*t = tsec + (double)tfrac / FRAC;
 			return;
 		}
+retry:
 		fprintf(stderr, "Unable to get NTP time. Retrying.\n");
 		fflush(stderr);
 		milli_sleep(1000);
