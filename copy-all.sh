@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 add_label()
 {
@@ -23,6 +23,6 @@ get()
 {
   echo "type	abs	unix	system	fdate	ftime"
   get -b
-  get
+  get | grep -v $'\t-'
   get -e
 } >all.txt
