@@ -50,7 +50,7 @@ HashMap<String, Integer> systemColumn = new HashMap<String, Integer>();
 ArrayList<HashMap<String, TableRow>> history = new ArrayList<HashMap<String, TableRow>>();
 final int historyRows = 6;
 final String title = "Leap Second Log: 2016-12-31";
-final String cc = "CC BY 4.0 www.spinellis.gr";
+final String cc = "CC BY 4.0 - www.spinellis.gr/blog/20170101";
 
 // The absolute time for the beginning and end records
 double beginRecordsBegin = -1;
@@ -121,12 +121,14 @@ void
       TableRow r = v.getRow(i);
       float t = animationTime(r);
       println("Working on frame=" + frameCount + " t=" + t);
-      processRow(r);
-      if (t < frameCount / virtualFrameRate)
+      if (t < frameCount / virtualFrameRate) {
+        processRow(r);
         continue;
+      }
+      // Save current state, before processing row from a different time
       frameCount++;
       saveFrame("r:/frames/#######.png");
-      // if (frameCount > 245) break;
+      processRow(r);
     }
     exit();
   }
@@ -163,7 +165,7 @@ animationTime(TableRow r)
       endRecordsBegin = Math.floor(t);
       clearHistory();
     }
-    return (float)(28.8 + 120 + (t - endRecordsBegin) / 60 / virtualFrameRate);
+    return (float)(28.8 + 122 + (t - endRecordsBegin) / 60 / virtualFrameRate);
   }
   return 0f;
 }

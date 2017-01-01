@@ -23,6 +23,9 @@ get()
 {
   echo "type	abs	unix	system	fdate	ftime"
   get -b
-  get | grep -v $'\t-'
+  get |
+  grep -v $'\t-' |
+  awk 'BEGIN {OFS = "\t"} /^m/ && $4 == "freefall" {$2 += .364 + 2} {print}' |
+  sort -k2n
   get -e
 } >all.txt
