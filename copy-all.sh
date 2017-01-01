@@ -10,13 +10,12 @@ add_label()
 get()
 {
   SUFFIX=$1
+  HOSTS="$2"
   {
-    for i in parrot swa papers freefall eleana ; do
+    for i in parrot swa papers freefall ; do
       ssh $i cat /tmp/leap-sec-$i$SUFFIX.txt |
       add_label $i $SUFFIX
     done
-    dos2unix <win$SUFFIX.txt |
-    add_label win $SUFFIX
   } |
   sort -k2n
 }
