@@ -55,6 +55,12 @@ milli_sleep(unsigned long msec)
 	tv.tv_usec = (msec % 1000L) * 1000L;
 	(void)select(0, 0, 0, 0, &tv);
 }
+
+static int
+closesocket(int s)
+{
+	return close(s);
+}
 #endif
 
 #if defined(__MACH__)
@@ -151,27 +157,6 @@ err(int ret, const char *msg)
 }
 
 #endif
-
-/*
- * Shutdown and close the specified socket
- * This graceful handling hopefully handles the case
- * where hosts behind the router were unable to contact the NTP
- * server after about 60 exchanges.
- */
-static void
-shutdown_close(int s)
-{
-	char buff[1024];
-
-	shutdown(s, SHUT_RDWR);
-	while (read(s, buff, sizeof(buff)) > 0)
-		;
-#if defined(_WIN32)
-	closesocket(s);
-#else
-	close(s);
-#endif
-}
 
 /* Display the program's name */
 static char *
@@ -296,17 +281,14 @@ ntp_time(const char *hostname, double *t)
 		if (n != sizeof(msg)) {
 			fprintf(stderr, "Unable to send NTP packet: %s\n",
 					strerror(errno));
-			shutdown_close(s);
 			goto retry;
 		}
 		n = recv(s, (char *)buf, sizeof(buf), 0);
 		if (n <= 0) {
 			fprintf(stderr, "Unable to receive NTP packet: %s\n",
 					strerror(errno));
-			shutdown_close(s);
 			goto retry;
 		}
-		shutdown_close(s);
 		tsec = ntohl((uint32_t) buf[10]);
 		if (tsec != 0) {
 			tfrac = ntohl((uint32_t) buf[11]);
@@ -315,6 +297,7 @@ ntp_time(const char *hostname, double *t)
 			return;
 		}
 retry:
+		closesocket(s);
 		fprintf(stderr, "Unable to get NTP time. Retrying.\n");
 		fflush(stderr);
 		milli_sleep(1000);
