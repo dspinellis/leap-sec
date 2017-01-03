@@ -369,6 +369,7 @@ main(int argc, char *argv[])
 	WSADATA wsaData;
 	WORD v;
 
+	v = MAKEWORD(2, 2);
 	if (WSAStartup(v, &wsaData) != 0)
 		err(1, "WSAStartup");
 #endif
